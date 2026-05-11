@@ -1,0 +1,111 @@
+#include <stdio.h>
+
+// ---------------- VECTOR ADDITION KERNEL ----------------
+__global__ void vecAdd(float *A, float *B, float *C, int N)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i < N)
+        C[i] = A[i] + B[i];
+}
+
+// ---------------- MATRIX MULTIPLICATION KERNEL ----------------
+__global__ void matMul(float *A, float *B, float *C, int N)
+{
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (row < N && col < N)
+    {
+        float sum = 0;
+
+        for (int k = 0; k < N; k++)
+            sum += A[row * N + k] * B[k * N + col];
+
+        C[row * N + col] = sum;
+    }
+}
+
+int main()
+{
+    // =====================================================
+    // VECTOR ADDITION
+    // =====================================================
+
+    int N = 5;
+    size_t vecSize = N * sizeof(float);
+
+    float h_A[] = {1, 2, 3, 4, 5};
+    float h_B[] = {10, 20, 30, 40, 50};
+    float h_C[5];
+
+    float *d_A, *d_B, *d_C;
+
+    cudaMalloc(&d_A, vecSize);
+    cudaMalloc(&d_B, vecSize);
+    cudaMalloc(&d_C, vecSize);
+
+    cudaMemcpy(d_A, h_A, vecSize, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, h_B, vecSize, cudaMemcpyHostToDevice);
+
+    vecAdd<<<1, N>>>(d_A, d_B, d_C, N);
+
+    cudaMemcpy(h_C, d_C, vecSize, cudaMemcpyDeviceToHost);
+
+    printf("Vector Addition Result:\n");
+
+    for (int i = 0; i < N; i++)
+        printf("%.0f ", h_C[i]);
+
+    printf("\n\n");
+
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
+
+
+    // =====================================================
+    // MATRIX MULTIPLICATION
+    // =====================================================
+
+    int M = 2;
+    size_t matSize = M * M * sizeof(float);
+
+    float h_MatA[] = {1, 2, 3, 4};
+
+    float h_MatB[] = {5, 6,  7, 8};
+
+    float h_MatC[4];
+
+    float *d_MatA, *d_MatB, *d_MatC;
+
+    cudaMalloc(&d_MatA, matSize);
+    cudaMalloc(&d_MatB, matSize);
+    cudaMalloc(&d_MatC, matSize);
+
+    cudaMemcpy(d_MatA, h_MatA, matSize, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_MatB, h_MatB, matSize, cudaMemcpyHostToDevice);
+
+    dim3 threads(16, 16);
+    dim3 blocks((M + 15) / 16, (M + 15) / 16);
+
+    matMul<<<blocks, threads>>>(d_MatA, d_MatB, d_MatC, M);
+
+    cudaMemcpy(h_MatC, d_MatC, matSize, cudaMemcpyDeviceToHost);
+
+    printf("Matrix Multiplication Result:\n");
+
+    for (int i = 0; i < M * M; i++)
+    {
+        printf("%.0f ", h_MatC[i]);
+
+        if ((i + 1) % M == 0)
+            printf("\n");
+    }
+
+    cudaFree(d_MatA);
+    cudaFree(d_MatB);
+    cudaFree(d_MatC);
+
+    return 0;
+}
